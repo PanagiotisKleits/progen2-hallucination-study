@@ -26,3 +26,32 @@ sampling) restricts sampling to the most probable tokens whose cumulative probab
 
 A tab-separated file with two columns: protein length (in amino acids) and its count in the reference proteome. The script samples `count // 10` proteins per
 length per parameter combination:
+
+Lengths greater than 1023 are automatically skipped, as ProGen2 has a hard token limit of 1024.
+
+## Usage
+
+### Requirements
+
+- Python 3.8+
+- [ProGen2](https://github.com/salesforce/progen) installed and accessible
+- PyTorch
+- HuggingFace `transformers`
+- HuggingFace `tokenizers`
+
+### Basic Usage
+
+**CPU (multi-core VM):**
+```bash
+python run_progen2_v3.py --device cpu
+```
+
+**Single GPU:**
+```bash
+python run_progen2_v3.py --device cuda
+```
+
+**Multi-GPU (DataParallel):**
+```bash
+python run_progen2_v3.py --device cuda --multi-gpu
+```
