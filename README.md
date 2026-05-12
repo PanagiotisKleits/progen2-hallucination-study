@@ -60,10 +60,17 @@ python run_progen2_v3.py --device cuda --multi-gpu
 | Argument | Default | Description |
 
 | `--device` | `cpu` | `cpu` or `cuda` |
+
 | `--multi-gpu` | `False` | Enable DataParallel across all available GPUs |
+
 | `--params-tsv` | `progen2_params.tsv` | Path to sampling parameter grid |
+
 | `--lengths-tsv` | `protein_lengths.tsv` | Path to length distribution file |
+
 | `--output-dir` | `progen2_outputs2` | Directory for output FASTA file |
+
 | `--repetition-penalty` | `1.0` | Penalise repeated tokens (1.0 = no penalty) |
+
 | `--progen2-dir` | `/path/to/progen2` | Path to ProGen2 source directory |
+
 | `--checkpoints` | `/path/to/progen2-small` | Path to model checkpoint directory |
