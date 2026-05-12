@@ -74,3 +74,24 @@ python run_progen2_v3.py --device cuda --multi-gpu
 | `--progen2-dir` | `/path/to/progen2` | Path to ProGen2 source directory |
 
 | `--checkpoints` | `/path/to/progen2-small` | Path to model checkpoint directory |
+
+## Output
+
+All generated sequences are saved to a single FASTA file (`all_sequences.fasta`) inside the output directory.
+
+## Implementation Details
+
+**Compatibility patch:** ProGen2 predates newer versions of HuggingFace `transformers`. The script automatically patches `ProGenForCausalLM` to inherit from `GenerationMixin` if needed, ensuring compatibility with `transformers >= 4.50`.
+
+**Sequence cleaning:** Generated tokens are filtered to retain only the 20 standard amino acids (`ACDEFGHIKLMNPQRSTVWY`). Non-standard characters (X, B, Z, U) and tokenizer artefacts (start token `1`, end token `2`) are removed before saving.
+
+**Length control:** Generation uses `max_new_tokens` to control output length. ProGen2 uses `1` as a start token and `2` as an end token.
+
+**Multi-GPU:** When `--multi-gpu` is set and multiple GPUs are available, PyTorch `DataParallel` is used to distribute the batch across all GPUs.
+
+## Notes
+
+- This study uses `progen2-small`. The same script can be adapted for larger ProGen2 variants by changing `--checkpoints`.
+- At low temperatures (e.g. 0.2), the model tends to produce degenerate sequences dominated by a single repeated amino acid (e.g. `MSSSSSSS...`). This behaviour is itself a hallucination signal and is retained in the output for analysis.
+- The `--repetition-penalty` argument can reduce repetitive outputs, but values above ~1.3 may cause the model to produce very short or empty sequences.
+
