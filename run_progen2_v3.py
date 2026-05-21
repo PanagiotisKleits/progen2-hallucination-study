@@ -47,8 +47,17 @@ def load_tokenizer(progen2_dir):
 def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device, repetition_penalty, length):
     start_id = tokenizer.encode("1").ids[0]
     end_id   = tokenizer.encode("2").ids[0]
-    input_ids = torch.tensor([[start_id]] * num_samples).to(device)
-    attention_mask = torch.ones_like(input_ids)
+
+    if batch_size is None:
+        batch_size = num_samples 
+
+    sequences = []
+    remaining = num_samples # counter that tracks how many sequences still need to be generated.
+
+    while remaining > 0:
+        current_batch = min(batch_size, remaining) # generates either a full batch or whatever is left, whichever is smaller
+        input_ids = torch.tensor([[start_id]] * current_batch).to(device) # creates a tensor with one start token for each sequence in the batch, and moves it to the device
+        attention_mask = torch.ones_like(input_ids)
 
     with torch.no_grad():
         output = model.generate(
@@ -69,7 +78,9 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
         cleaned = ''.join(c for c in decoded if c in 'ACDEFGHIKLMNPQRSTVWY')
         if cleaned:
           sequences.append(cleaned)
-
+    
+    remaining -= current_batch
+    
     return sequences
 
 
@@ -83,8 +94,10 @@ def main():
     parser.add_argument("--output-dir", default=OUTPUT_DIR)
     parser.add_argument("--lengths-tsv", default=LENGTHS_TSV)
     parser.add_argument("--repetition-penalty", type=float, default=1.0)
-    parser.add_argument("--progen2-dir", default="")
-    parser.add_argument("--checkpoints", default="")
+    parser.add_argument("--progen2-dir", default="/bcpl_bcpl/Software/progen/progen/progen2")
+    parser.add_argument("--checkpoints", default="/bcpl_vari/progen_DATA/progen/progen2/checkpoints/progen2-small")
+    parser.add_argument("--batch-size", type=int, default=None, help="Sequences per model.generate() call. Defaults to all num_samples at once.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
     
     sys.path.insert(0, args.progen2_dir)
@@ -145,6 +158,16 @@ def main():
     all_rows = []
     total_start = time.time()
 
+    progress_path = os.path.join(args.output_dir, "progress.txt") # builds the path to the progress file inside the output directory
+    completed = set()
+    if os.path.exists(progress_path): #checks if a progress file already exists from a previous run
+        with open(progress_path) as pf:
+            for line in pf:
+                completed.add(line.strip()) # reads each line from the progress file and adds it to the completed set
+
+    total_combinations = len(params) * len(lengths) #calculates the total number of combinations 
+    completed_count = len(completed) # initialises the counter to however many combinations were already done in a previous run
+    
     for t, p in params:
       for length, num_samples in lengths:
 
