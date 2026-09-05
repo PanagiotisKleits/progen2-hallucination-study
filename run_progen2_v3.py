@@ -1,6 +1,3 @@
-
-
-#!/usr/bin/env python3
 import time
 import os
 import re
@@ -27,12 +24,12 @@ from tokenizers import Tokenizer
 # ── Model loading ───────────────────────────────────────────────────────────────
 def load_model(device,  checkpoint_path, ProGenForCausalLM,multi_gpu=False):
     print(f"Loading progen2-small from {checkpoint_path} ")
-    model = ProGenForCausalLM.from_pretrained(checkpoint_path)
+    model = ProGenForCausalLM.from_pretrained(checkpoint_path) # loads the progen2-small weights from disk
     model.eval()
 
     if multi_gpu and torch.cuda.device_count() > 1:
         print(f"  Using {torch.cuda.device_count()} GPUs via DataParallel")
-        model = torch.nn.DataParallel(model)
+        model = torch.nn.DataParallel(model) # wraps the model so it splits each batch across all available GPUs automatically
 
     model = model.to(device)
     return model
@@ -44,12 +41,13 @@ def load_tokenizer(progen2_dir):
 
 
 # ── Generation ──────────────────────────────────────────────────────────────────
-def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device, repetition_penalty, length):
+def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device, repetition_penalty, length, batch_size=None):
     start_id = tokenizer.encode("1").ids[0]
     end_id   = tokenizer.encode("2").ids[0]
 
+
     if batch_size is None:
-        batch_size = num_samples 
+        batch_size = num_samples
 
     sequences = []
     remaining = num_samples # counter that tracks how many sequences still need to be generated.
@@ -59,28 +57,28 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
         input_ids = torch.tensor([[start_id]] * current_batch).to(device) # creates a tensor with one start token for each sequence in the batch, and moves it to the device
         attention_mask = torch.ones_like(input_ids)
 
-    with torch.no_grad():
-        output = model.generate(
-            input_ids,
-            attention_mask=attention_mask,
-            do_sample=True,
-            temperature=temperature,
-            top_p=top_p,
-            max_new_tokens=length,
-            eos_token_id=end_id,
-            pad_token_id=end_id,
-            repetition_penalty=repetition_penalty,
+        with torch.no_grad():
+            output = model.generate(
+                input_ids,
+                attention_mask=attention_mask,
+                do_sample=True,
+                temperature=temperature,
+                top_p=top_p,
+                max_new_tokens=length,
+                eos_token_id=end_id,
+                pad_token_id=end_id,
+                repetition_penalty=repetition_penalty,
         )
 
-    sequences = []
-    for seq in output:
-        decoded = tokenizer.decode(seq.tolist(), skip_special_tokens=True).strip()
-        cleaned = ''.join(c for c in decoded if c in 'ACDEFGHIKLMNPQRSTVWY')
-        if cleaned:
-          sequences.append(cleaned)
-    
-    remaining -= current_batch
-    
+
+        for seq in output:
+            decoded = tokenizer.decode(seq.tolist(), skip_special_tokens=True).strip() # converts the numeric token IDs back to amino acid letters, removing special tokens like the start and end markers
+            cleaned = ''.join(c for c in decoded if c in 'ACDEFGHIKLMNPQRSTVWY')
+            if cleaned:
+                sequences.append(cleaned)
+
+        remaining -= current_batch
+
     return sequences
 
 
@@ -99,16 +97,16 @@ def main():
     parser.add_argument("--batch-size", type=int, default=None, help="Sequences per model.generate() call. Defaults to all num_samples at once.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     args = parser.parse_args()
-    
+
     sys.path.insert(0, args.progen2_dir)
-    
+
     os.makedirs(args.output_dir, exist_ok=True)
-    
+
     from models.progen.modeling_progen import ProGenForCausalLM
     from transformers import GenerationMixin
 
     if GenerationMixin not in ProGenForCausalLM.__bases__:
-        ProGenForCausalLM.__bases__ = ProGenForCausalLM.__bases__ + (GenerationMixin,)
+        ProGenForCausalLM.__bases__ = ProGenForCausalLM.__bases__ + (GenerationMixin,) #  patches ProGen2 to work with newer versions of the transformers library
 
     # ── Device setup ───────────────────────────────────────────────────────────
     if args.device == "cuda":
@@ -130,13 +128,13 @@ def main():
     # ── Load model once ────────────────────────────────────────────────────────
     model = load_model(device, args.checkpoints, ProGenForCausalLM=ProGenForCausalLM, multi_gpu=args.multi_gpu)
     tokenizer = load_tokenizer(args.progen2_dir)
-
+    torch.manual_seed(args.seed)
     # ── Read (t, p) parameters ─────────────────────────────────────────────────
     params = []
     with open(args.params_tsv) as f:
         next(f)  # skip header
         for line in f:
-            parts = re.split(r'\t+', line.strip())
+            parts = re.split(r'\t+', line.strip()) # splits each line on one or more tabs, handling the double-tab formatting in the TSV files
             if len(parts) >= 2:
                 t = float(parts[0])
                 p = float(parts[1])
@@ -155,7 +153,7 @@ def main():
 
     print(f"\nRunning {len(params)} parameter combinations × {len(lengths)} samples\n")
 
-    all_rows = []
+
     total_start = time.time()
 
     progress_path = os.path.join(args.output_dir, "progress.txt") # builds the path to the progress file inside the output directory
@@ -165,27 +163,35 @@ def main():
             for line in pf:
                 completed.add(line.strip()) # reads each line from the progress file and adds it to the completed set
 
-    total_combinations = len(params) * len(lengths) #calculates the total number of combinations 
+    total_combinations = len(params) * len(lengths) #calculates the total number of combinations
     completed_count = len(completed) # initialises the counter to however many combinations were already done in a previous run
-    
+
     for t, p in params:
       for length, num_samples in lengths:
 
           run_id = f"t{t}_p{p}_len{length}"
+          if run_id in completed: #  checks if this combination was already completed in a previous run
+                print(f"→ {run_id} already done, skipping")
+                continue
+
           print(f"→ {run_id} ", end=" ", flush=True)
 
-          sequences = generate_proteins(model, tokenizer, t, p,num_samples,device,args.repetition_penalty, length)
+          sequences = generate_proteins(model, tokenizer, t, p,num_samples,device,args.repetition_penalty, length, batch_size=args.batch_size)
 
         # Save per-combination FASTA
-          fasta_path = os.path.join(args.output_dir, f"all_sequences.fasta")
-          with open(fasta_path, "a") as f:
-             for i, seq in enumerate(sequences, 1):
-                 f.write(f">{run_id}_seq{i}\n{seq}\n")
+          fasta_path = os.path.join(args.output_dir, f"t{t}_p{p}.fasta")
+          with open(fasta_path, "a") as f: # opens the file so sequences from different lengths within the same (t, p) combination are all written to the same file
+                for i, seq in enumerate(sequences, 1):
+                    f.write(f">{run_id}_seq{i}\n{seq}\n")
 
-          print(f"done  ({len(sequences)} sequences → {fasta_path})")
+          with open(progress_path, "a") as pf:
+                pf.write(run_id + "\n")
+
+          completed_count += 1
+          print(f"done  ({len(sequences)} sequences — Progress: {completed_count}/{total_combinations})")
 
     total_time=time.time()-total_start
-    print(f"\nAll done! Results saved to {args.output_dir}/all_sequences.fasta")
+    print(f"\nAll done! Results saved to {args.output_dir}")
     print(f"Total time: {total_time:.1f} sec")
 
 if __name__ == "__main__":
