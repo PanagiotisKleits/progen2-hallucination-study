@@ -22,19 +22,13 @@ LENGTHS_TSV    = "protein_lengths.tsv"
 OUTPUT_DIR     = "progen2_outputs2"
 NUM_SAMPLES    = 100   # proteins per (t, p) combination
 
-
-
-
 from tokenizers import Tokenizer
-
-
-
-
 
 # ── Model loading ───────────────────────────────────────────────────────────────
 def load_model(device,  checkpoint_path, ProGenForCausalLM,multi_gpu=False):
     print(f"Loading progen2-small from {checkpoint_path} ")
-    model = ProGenForCausalLM.from_pretrained(checkpoint_path) # loads the progen2-small weights from disk
+    # loads the progen2-small weights from disk
+    model = ProGenForCausalLM.from_pretrained(checkpoint_path) 
     model.eval()
 
     if multi_gpu and torch.cuda.device_count() > 1:
@@ -52,6 +46,8 @@ def load_tokenizer(progen2_dir):
 
 # ── Generation ──────────────────────────────────────────────────────────────────
 def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device, repetition_penalty, length, batch_size=None):
+    
+    #Clear definition of start and end tokens in order to avoid hallucination possibilities
     start_id = tokenizer.encode("1").ids[0]
     end_id   = tokenizer.encode("2").ids[0]
 
@@ -60,11 +56,12 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
         batch_size = num_samples
 
     sequences = []
-    remaining = num_samples # counter that tracks how many sequences still need to be generated.
+    remaining = num_samples 
 
     while remaining > 0:
-        current_batch = min(batch_size, remaining) # generates either a full batch or whatever is left, whichever is smaller
-        input_ids = torch.tensor([[start_id]] * current_batch).to(device) # creates a tensor with one start token for each sequence in the batch, and moves it to the device
+        current_batch = min(batch_size, remaining) 
+        # creates a tensor with one start token for each sequence in the batch, and moves it to the device
+        input_ids = torch.tensor([[start_id]] * current_batch).to(device) 
         attention_mask = torch.ones_like(input_ids)
 
         with torch.no_grad():
@@ -82,7 +79,9 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
 
 
         for seq in output:
-            decoded = tokenizer.decode(seq.tolist(), skip_special_tokens=True).strip() # converts the numeric token IDs back to amino acid letters, removing special tokens like the start and end markers
+            # converts the numeric token IDs back to amino acid letters, removing special tokens like the start and end markers
+            decoded = tokenizer.decode(seq.tolist(), skip_special_tokens=True).strip() 
+            # removes any letters or numbers that don't represent possible amino acids
             cleaned = ''.join(c for c in decoded if c in 'ACDEFGHIKLMNPQRSTVWY')
             if cleaned:
                 sequences.append(cleaned)
