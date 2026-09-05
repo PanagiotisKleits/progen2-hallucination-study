@@ -20,7 +20,7 @@ Outputs <output-dir>/t{t}_p{p}.fasta and <output-dir>/progress.txt
 PARAMS_TSV     = "progen2_params.tsv"
 LENGTHS_TSV    = "protein_lengths.tsv"
 OUTPUT_DIR     = "progen2_outputs2"
-NUM_SAMPLES    = 100   # proteins per (t, p) combination
+
 
 from tokenizers import Tokenizer
 
@@ -47,7 +47,7 @@ def load_tokenizer(progen2_dir):
 # ── Generation ──────────────────────────────────────────────────────────────────
 def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device, repetition_penalty, length, batch_size=None):
     
-    #Clear definition of start and end tokens in order to avoid hallucination possibilities
+    #Clear definition of start and end tokens in order to define a normally oriented protein
     start_id = tokenizer.encode("1").ids[0]
     end_id   = tokenizer.encode("2").ids[0]
 
@@ -96,7 +96,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device",     default="cpu", choices=["cpu", "cuda"],help="'cpu' for 96-core VM, 'cuda' for GPU VMs")
     parser.add_argument("--multi-gpu",  action="store_true",help="Enable DataParallel across all available GPUs (7-GPU VM)")
-    parser.add_argument("--num-samples", type=int, default=NUM_SAMPLES, help="Proteins to generate per (t, p) combination")
     parser.add_argument("--params-tsv", default=PARAMS_TSV)
     parser.add_argument("--output-dir", default=OUTPUT_DIR)
     parser.add_argument("--lengths-tsv", default=LENGTHS_TSV)
@@ -138,6 +137,7 @@ def main():
     model = load_model(device, args.checkpoints, ProGenForCausalLM=ProGenForCausalLM, multi_gpu=args.multi_gpu)
     tokenizer = load_tokenizer(args.progen2_dir)
     torch.manual_seed(args.seed)
+    
     # ── Read (t, p) parameters ─────────────────────────────────────────────────
     params = []
     with open(args.params_tsv) as f:
