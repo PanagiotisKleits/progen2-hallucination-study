@@ -1,3 +1,13 @@
+"""
+Generate synthetic proteins with ProGen2-small over a grid of sampling parameters, for the ProGen2 hallucination study
+
+For every (temperature, top_p) pair in --params-tsv and every length in --lengths-tsv, samples 'count//10' sequences and
+appends them to a per-parameter FASTA. Completed (t,p,length) triples are logged to progress.txt, so an interrupted run
+resumes instead of starting over.
+
+Inputs two TSVs: (temperature, top_p) and (length, count)
+Outputs <output-dir>/t{t}_p{p}.fasta and <output-dir>/progress.txt
+"""
 import time
 import os
 import re
@@ -5,16 +15,6 @@ import sys
 import argparse
 import torch
 
-"""
-Generate synthetic proteins with ProGen2-small over a grid of sampling parameters, for the ProGen2 hallucination study
-
-For every (temperature, top_p) pairn in --params-tsv and every length in --lengths-tsv, samples 'count//10' seuences and
-appends them to a per-parameter FASTA. Completed (t,p,length) triples are logged to progress.txt, so an interrupted run
-resumes instead of starting over.
-
-Inputs two TSVs: (temperature, top_p) and (length, count)
-Outputs <output-dir>/t{t}_p{p}.fasta and <output-dir>/progress.txt
-"""
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
 PARAMS_TSV     = "progen2_params.tsv"
@@ -30,13 +30,14 @@ def load_model(device,  checkpoint_path, ProGenForCausalLM,multi_gpu=False):
     # loads the progen2-small weights from disk
     model = ProGenForCausalLM.from_pretrained(checkpoint_path) 
     model.eval()
-
+    model = model.to(device)
+return model
+    
     if multi_gpu and torch.cuda.device_count() > 1:
         print(f"  Using {torch.cuda.device_count()} GPUs via DataParallel")
         model = torch.nn.DataParallel(model) 
 
-    model = model.to(device)
-    return model
+    
 
 
 def load_tokenizer(progen2_dir):
