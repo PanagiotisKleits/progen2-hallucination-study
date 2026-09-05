@@ -31,7 +31,7 @@ def load_model(device,  checkpoint_path, ProGenForCausalLM,multi_gpu=False):
     model = ProGenForCausalLM.from_pretrained(checkpoint_path) 
     model.eval()
     model = model.to(device)
-return model
+    return model
     
     if multi_gpu and torch.cuda.device_count() > 1:
         print(f"  Using {torch.cuda.device_count()} GPUs via DataParallel")
@@ -96,7 +96,6 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--device",     default="cpu", choices=["cpu", "cuda"],help="'cpu' for 96-core VM, 'cuda' for GPU VMs")
-    parser.add_argument("--multi-gpu",  action="store_true",help="Enable DataParallel across all available GPUs (7-GPU VM)")
     parser.add_argument("--params-tsv", default=PARAMS_TSV)
     parser.add_argument("--output-dir", default=OUTPUT_DIR)
     parser.add_argument("--lengths-tsv", default=LENGTHS_TSV)
@@ -135,7 +134,7 @@ def main():
         print(f"CPU mode — using {n_threads} threads")
 
     # ── Load model once ────────────────────────────────────────────────────────
-    model = load_model(device, args.checkpoints, ProGenForCausalLM=ProGenForCausalLM, multi_gpu=args.multi_gpu)
+    model = load_model(device, args.checkpoints, ProGenForCausalLM=ProGenForCausalLM)
     tokenizer = load_tokenizer(args.progen2_dir)
     torch.manual_seed(args.seed)
     
