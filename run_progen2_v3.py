@@ -19,7 +19,7 @@ import torch
 
 PARAMS_TSV     = "progen2_params.tsv"
 LENGTHS_TSV    = "protein_lengths.tsv"
-OUTPUT_DIR     = "progen2_outputs2"
+OUTPUT_DIR     = "test_lengths"
 
 
 from tokenizers import Tokenizer
