@@ -32,12 +32,6 @@ def load_model(device,  checkpoint_path, ProGenForCausalLM,multi_gpu=False):
     model.eval()
     model = model.to(device)
     return model
-    
-    if multi_gpu and torch.cuda.device_count() > 1:
-        print(f"  Using {torch.cuda.device_count()} GPUs via DataParallel")
-        model = torch.nn.DataParallel(model) 
-
-    
 
 
 def load_tokenizer(progen2_dir):
