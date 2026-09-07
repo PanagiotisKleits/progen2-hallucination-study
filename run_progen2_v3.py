@@ -70,7 +70,7 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
 
 
         for seq in output:
-            # converts the numeric token IDs back to amino acid letters, removing special tokens like the start and end markers
+            # converts the numeric token IDs back to amino acid letters
             decoded = tokenizer.decode(seq.tolist(), skip_special_tokens=True).strip() 
             # removes any letters or numbers that don't represent possible amino acids
             cleaned = ''.join(c for c in decoded if c in 'ACDEFGHIKLMNPQRSTVWY')
