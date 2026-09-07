@@ -19,13 +19,12 @@ import torch
 
 PARAMS_TSV     = "progen2_params.tsv"
 LENGTHS_TSV    = "protein_lengths.tsv"
-OUTPUT_DIR     = "test_lengths"
-
+OUTPUT_DIR     = "progen2_outputs"
 
 from tokenizers import Tokenizer
 
 # ── Model loading ───────────────────────────────────────────────────────────────
-def load_model(device,  checkpoint_path, ProGenForCausalLM,multi_gpu=False):
+def load_model(device,  checkpoint_path, ProGenForCausalLM):
     print(f"Loading progen2-small from {checkpoint_path} ")
     # loads the progen2-small weights from disk
     model = ProGenForCausalLM.from_pretrained(checkpoint_path) 
@@ -33,11 +32,9 @@ def load_model(device,  checkpoint_path, ProGenForCausalLM,multi_gpu=False):
     model = model.to(device)
     return model
 
-
 def load_tokenizer(progen2_dir):
     path = os.path.join(progen2_dir, "tokenizer.json")
     return Tokenizer.from_file(path)
-
 
 # ── Generation ──────────────────────────────────────────────────────────────────
 def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device, repetition_penalty, length, batch_size=None):
@@ -45,7 +42,6 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
     #Clear definition of start and end tokens in order to define a normally oriented protein
     start_id = tokenizer.encode("1").ids[0]
     end_id   = tokenizer.encode("2").ids[0]
-
 
     if batch_size is None:
         batch_size = num_samples
@@ -84,7 +80,6 @@ def generate_proteins(model, tokenizer, temperature, top_p, num_samples, device,
         remaining -= current_batch
 
     return sequences
-
 
 # ── Main ────────────────────────────────────────────────────────────────────────
 def main():
@@ -154,12 +149,12 @@ def main():
                 num_samples = int(parts[1]) // 10
                 lengths.append((length, num_samples))
 
-    print(f"\nRunning {len(params)} parameter combinations × {len(lengths)} samples\n")
+    print(f"\nRunning {len(params)} parameter combinations × {len(lengths)} lengths\n")
 
 
     total_start = time.time()
 
-    progress_path = os.path.join(args.output_dir, "progress.txt") # builds the path to the progress file inside the output directory
+    progress_path = os.path.join(args.output_dir, "progress.txt") 
     completed = set()
     if os.path.exists(progress_path): #checks if a progress file already exists from a previous run
         with open(progress_path) as pf:
